@@ -57,7 +57,9 @@ struct AIFontGeneratorView: View {
                 }
                 Spacer()
 
-                if llm.state == .idle || llm.state.isError {
+                if llm.state == .unavailable {
+                    // No button — MLX not available on this platform
+                } else if llm.state == .idle || llm.state.isError {
                     Button("Load Model") {
                         Task { await llm.loadModel() }
                     }
@@ -85,6 +87,7 @@ struct AIFontGeneratorView: View {
     private var modelStatusIcon: String {
         switch llm.state {
         case .idle: return "cpu"
+        case .unavailable: return "xmark.circle"
         case .downloading: return "arrow.down.circle"
         case .loading: return "memorychip"
         case .ready: return "checkmark.circle.fill"
@@ -97,6 +100,7 @@ struct AIFontGeneratorView: View {
         switch llm.state {
         case .ready: return .green
         case .error: return .red
+        case .unavailable: return .gray
         case .generating: return .purple
         default: return .accentColor
         }
