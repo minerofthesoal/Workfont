@@ -78,9 +78,11 @@ make clean
 ### Xcode Setup
 
 1. Open `GlyphCrafter.xcodeproj` in Xcode 16+
-2. Wait for SPM to resolve MLX Swift dependencies
-3. Set your Development Team in Signing & Capabilities for both targets
-4. Configure the App Group identifier (`group.com.glyphcrafter.app`) in both targets
+2. Set your Development Team in Signing & Capabilities for both targets
+3. Configure the App Group identifier (`group.com.glyphcrafter.app`) in both targets
+4. (Optional) For AI features: Add MLX Swift packages via File > Add Package Dependencies:
+   - `https://github.com/ml-explore/mlx-swift` (0.21.0+) — add MLX, MLXRandom, MLXNN, MLXOptimizers
+   - `https://github.com/ml-explore/mlx-swift-examples` (main branch) — add MLXLMCommon, MLXLLM
 5. Build and run on a device or simulator
 
 ### Keyboard Extension Setup

@@ -33,7 +33,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-
       - name: Swift Version
         run: swift --version
 
@@ -65,46 +64,18 @@ jobs:
           echo "All required files present."
 
   # ─────────────────────────────────────────────
-  # Job 2: Resolve SPM Dependencies
-  # ─────────────────────────────────────────────
-  resolve-deps:
-    name: Resolve Dependencies
-    runs-on: macos-15
-    needs: lint
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-
-      - name: Cache SPM
-        uses: actions/cache@v4
-        with:
-          path: build/SourcePackages
-          key: ${{ runner.os }}-spm-${{ hashFiles('GlyphCrafter/Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-spm-
-
-      - name: Resolve packages
-        run: |
-          xcodebuild -resolvePackageDependencies \
-            -project "$PROJECT_NAME.xcodeproj" \
-            -scheme "$SCHEME" \
-            -clonedSourcePackagesDirPath build/SourcePackages
-
-  # ─────────────────────────────────────────────
-  # Job 3: Build (Debug & Release)
+  # Job 2: Build (Debug & Release)
   # ─────────────────────────────────────────────
   build:
     name: Build (${{ matrix.configuration }})
     runs-on: macos-15
-    needs: resolve-deps
+    needs: lint
     strategy:
       matrix:
         configuration: [Debug, Release]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
 
       - name: Cache DerivedData
         uses: actions/cache@v4
@@ -114,30 +85,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-deriveddata-${{ matrix.configuration }}-
 
-      - name: Cache SPM
-        uses: actions/cache@v4
-        with:
-          path: build/SourcePackages
-          key: ${{ runner.os }}-spm-${{ hashFiles('GlyphCrafter/Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-spm-
-
       - name: Build App + Keyboard Extension
         run: |
+          set -o pipefail
           xcodebuild build \
             -project "$PROJECT_NAME.xcodeproj" \
             -scheme "$SCHEME" \
             -configuration ${{ matrix.configuration }} \
+            -sdk iphonesimulator \
             -destination "$DESTINATION_SIM" \
-            -clonedSourcePackagesDirPath build/SourcePackages \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             ONLY_ACTIVE_ARCH=YES \
-            | xcpretty --color || true
+            | xcpretty --color
 
   # ─────────────────────────────────────────────
-  # Job 4: Unit Tests
+  # Job 3: Unit Tests
   # ─────────────────────────────────────────────
   test:
     name: Run Tests
@@ -147,24 +111,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-
-      - name: Cache
+      - name: Cache DerivedData
         uses: actions/cache@v4
         with:
-          path: |
-            ~/Library/Developer/Xcode/DerivedData
-            build/SourcePackages
+          path: ~/Library/Developer/Xcode/DerivedData
           key: ${{ runner.os }}-test-${{ hashFiles('GlyphCrafter.xcodeproj/project.pbxproj') }}
           restore-keys: |
             ${{ runner.os }}-test-
 
       - name: Run Unit Tests
         run: |
+          set -o pipefail
           xcodebuild test \
             -project "$PROJECT_NAME.xcodeproj" \
             -scheme "$SCHEME" \
+            -sdk iphonesimulator \
             -destination "$DESTINATION_SIM" \
-            -clonedSourcePackagesDirPath build/SourcePackages \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
@@ -181,7 +143,7 @@ jobs:
           retention-days: 14
 
   # ─────────────────────────────────────────────
-  # Job 5: Generate App Icon
+  # Job 4: Generate App Icon
   # ─────────────────────────────────────────────
   generate-icon:
     name: Generate App Icon
@@ -209,7 +171,7 @@ jobs:
           retention-days: 30
 
   # ─────────────────────────────────────────────
-  # Job 6: Build Unsigned IPA
+  # Job 5: Build Unsigned IPA
   # ─────────────────────────────────────────────
   ipa:
     name: Build IPA
@@ -218,15 +180,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-
-      - name: Cache SPM
-        uses: actions/cache@v4
-        with:
-          path: build/SourcePackages
-          key: ${{ runner.os }}-spm-${{ hashFiles('GlyphCrafter/Package.swift') }}
-          restore-keys: |
-            ${{ runner.os }}-spm-
 
       - name: Build Release .app
         run: |
@@ -238,7 +191,6 @@ jobs:
             -sdk iphonesimulator \
             -destination "$DESTINATION_SIM" \
             -derivedDataPath build/DerivedData \
-            -clonedSourcePackagesDirPath build/SourcePackages \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
@@ -250,7 +202,6 @@ jobs:
           echo "Searching for .app bundles in DerivedData..."
           find build/DerivedData -name "*.app" -type d 2>/dev/null || true
           mkdir -p build/ipa/Payload
-          # Look for the app in standard build products paths first
           APP_PATH=""
           for search_dir in \
             "build/DerivedData/Build/Products/Release-iphonesimulator" \
@@ -283,7 +234,7 @@ jobs:
           retention-days: 30
 
   # ─────────────────────────────────────────────
-  # Job 7: Archive + Signed IPA (on tags)
+  # Job 6: Archive + Signed IPA (on tags)
   # ─────────────────────────────────────────────
   archive:
     name: Archive & Export Signed IPA
@@ -294,26 +245,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-
-      - name: Cache SPM
-        uses: actions/cache@v4
-        with:
-          path: build/SourcePackages
-          key: ${{ runner.os }}-spm-${{ hashFiles('GlyphCrafter/Package.swift') }}
-
       - name: Archive
         run: |
+          set -o pipefail
           xcodebuild archive \
             -project "$PROJECT_NAME.xcodeproj" \
             -scheme "$SCHEME" \
             -configuration Release \
             -destination "$DESTINATION_DEVICE" \
             -archivePath build/$PROJECT_NAME.xcarchive \
-            -clonedSourcePackagesDirPath build/SourcePackages \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            | xcpretty --color || true
+            | xcpretty --color
 
       - name: Export IPA from Archive
         run: |
@@ -349,7 +293,7 @@ jobs:
           retention-days: 30
 
   # ─────────────────────────────────────────────
-  # Job 8: Create GitHub Release (on tags)
+  # Job 7: Create GitHub Release (on tags)
   # ─────────────────────────────────────────────
   release:
     name: Create Release
