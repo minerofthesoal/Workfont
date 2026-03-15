@@ -76,7 +76,8 @@ ipa-unsigned: resolve-deps
 		-project $(PROJECT) \
 		-scheme $(SCHEME) \
 		-configuration Release \
-		-destination '$(DESTINATION)' \
+		-sdk iphonesimulator \
+		-destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
 		-derivedDataPath $(BUILD_DIR)/DerivedData \
 		-clonedSourcePackagesDirPath $(BUILD_DIR)/SourcePackages \
 		CODE_SIGN_IDENTITY="" \

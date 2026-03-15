@@ -241,26 +241,42 @@ jobs:
 
       - name: Build Release .app
         run: |
+          set -o pipefail
           xcodebuild build \
             -project "$PROJECT_NAME.xcodeproj" \
             -scheme "$SCHEME" \
             -configuration Release \
-            -destination "$DESTINATION_DEVICE" \
+            -sdk iphonesimulator \
+            -destination "$DESTINATION_SIM" \
             -derivedDataPath build/DerivedData \
             -clonedSourcePackagesDirPath build/SourcePackages \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             ONLY_ACTIVE_ARCH=NO \
-            | xcpretty --color || true
+            | xcpretty --color
 
       - name: Package into IPA
         run: |
+          echo "Searching for .app bundles in DerivedData..."
+          find build/DerivedData -name "*.app" -type d 2>/dev/null || true
           mkdir -p build/ipa/Payload
-          APP_PATH=$(find build/DerivedData -name "$SCHEME.app" -type d | head -1)
+          # Look for the app in standard build products paths first
+          APP_PATH=""
+          for search_dir in \
+            "build/DerivedData/Build/Products/Release-iphonesimulator" \
+            "build/DerivedData/Build/Products/Release-iphoneos" \
+            "build/DerivedData"; do
+            FOUND=$(find "$search_dir" -maxdepth 3 -name "$SCHEME.app" -type d 2>/dev/null | head -1)
+            if [ -n "$FOUND" ]; then
+              APP_PATH="$FOUND"
+              break
+            fi
+          done
           if [ -z "$APP_PATH" ]; then
             echo "ERROR: $SCHEME.app not found in DerivedData"
-            find build/DerivedData -name "*.app" -type d
+            echo "DerivedData contents:"
+            find build/DerivedData -type d -maxdepth 4 2>/dev/null || true
             exit 1
           fi
           echo "Found app at: $APP_PATH"
