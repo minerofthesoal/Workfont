@@ -17,7 +17,7 @@
 			isa = PBXContainerItemProxy;
 			containerPortal = A50000001;
 			proxyType = 1;
-			remoteGlobalIDString = A30000002;
+			remoteGlobalIDString = A80000002;
 			remoteInfo = GlyphCrafterKeyboard;
 		};
 /* End PBXContainerItemProxy section */
