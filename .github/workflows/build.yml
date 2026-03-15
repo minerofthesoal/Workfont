@@ -17,7 +17,6 @@ on:
           - Release
 
 env:
-  DEVELOPER_DIR: /Applications/Xcode_16.0.app/Contents/Developer
   PROJECT_NAME: GlyphCrafter
   SCHEME: GlyphCrafter
   DESTINATION_SIM: 'platform=iOS Simulator,name=iPhone 16,OS=latest'
@@ -34,8 +33,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s "$DEVELOPER_DIR"
 
       - name: Swift Version
         run: swift --version
@@ -78,8 +75,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s "$DEVELOPER_DIR"
 
       - name: Cache SPM
         uses: actions/cache@v4
@@ -110,8 +105,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s "$DEVELOPER_DIR"
 
       - name: Cache DerivedData
         uses: actions/cache@v4
@@ -154,8 +147,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s "$DEVELOPER_DIR"
 
       - name: Cache
         uses: actions/cache@v4
@@ -228,8 +219,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s "$DEVELOPER_DIR"
 
       - name: Cache SPM
         uses: actions/cache@v4
@@ -305,8 +294,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s "$DEVELOPER_DIR"
 
       - name: Cache SPM
         uses: actions/cache@v4

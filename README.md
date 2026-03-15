@@ -50,7 +50,7 @@ A cutting-edge iOS application for creating custom hand-drawn fonts entirely on-
 ## Building
 
 ### Requirements
-- iOS 26.0+
+- iOS 18.0+
 - Xcode 16.0+
 - Swift 6.0+
 - Apple Developer account (for keyboard extension provisioning)
