@@ -10,12 +10,6 @@
 		A10000001 /* GlyphCrafterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000001; };
 		A10000002 /* GlyphCrafterKeyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000002; };
 		A10000003 /* GlyphCrafterKeyboard.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = A30000002; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		B10000001 /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = B20000001; };
-		B10000002 /* MLXRandom in Frameworks */ = {isa = PBXBuildFile; productRef = B20000002; };
-		B10000003 /* MLXNN in Frameworks */ = {isa = PBXBuildFile; productRef = B20000003; };
-		B10000004 /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = B20000004; };
-		B10000005 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = B20000005; };
-		B10000006 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = B20000006; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -102,14 +96,6 @@
 				AD0000001,
 			);
 			name = GlyphCrafter;
-			packageProductDependencies = (
-				B20000001,
-				B20000002,
-				B20000003,
-				B20000004,
-				B20000005,
-				B20000006,
-			);
 			productName = GlyphCrafter;
 			productReference = A30000001;
 			productType = "com.apple.product-type.application";
@@ -150,10 +136,6 @@
 				Base,
 			);
 			mainGroup = A70000001;
-			packageReferences = (
-				B30000001,
-				B30000002,
-			);
 			productRefGroup = A70000004;
 			projectDirPath = "";
 			projectRoot = "";
@@ -188,12 +170,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B10000001,
-				B10000002,
-				B10000003,
-				B10000004,
-				B10000005,
-				B10000006,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -406,58 +382,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		B30000001 /* mlx-swift */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ml-explore/mlx-swift";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.21.0;
-			};
-		};
-		B30000002 /* mlx-swift-examples */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/ml-explore/mlx-swift-examples";
-			requirement = {
-				kind = branch;
-				branch = main;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		B20000001 /* MLX */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = B30000001;
-			productName = MLX;
-		};
-		B20000002 /* MLXRandom */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = B30000001;
-			productName = MLXRandom;
-		};
-		B20000003 /* MLXNN */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = B30000001;
-			productName = MLXNN;
-		};
-		B20000004 /* MLXOptimizers */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = B30000001;
-			productName = MLXOptimizers;
-		};
-		B20000005 /* MLXLMCommon */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = B30000002;
-			productName = MLXLMCommon;
-		};
-		B20000006 /* MLXLLM */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = B30000002;
-			productName = MLXLLM;
-		};
-/* End XCSwiftPackageProductDependency section */
 
 	};
 	rootObject = A50000001 /* Project object */;
