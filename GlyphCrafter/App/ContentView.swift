@@ -2,13 +2,12 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(FontProjectStore.self) private var store
-    @State private var showingNewProject = false
-    @State private var newProjectName = ""
     @State private var selectedTab: AppTab = .projects
 
     enum AppTab: String, CaseIterable {
         case projects = "Projects"
         case editor = "Editor"
+        case ai = "AI Generate"
         case preview = "Preview"
         case export = "Export"
 
@@ -16,6 +15,7 @@ struct ContentView: View {
             switch self {
             case .projects: return "folder"
             case .editor: return "pencil.and.outline"
+            case .ai: return "sparkles"
             case .preview: return "eye"
             case .export: return "square.and.arrow.up"
             }
@@ -31,6 +31,14 @@ struct ContentView: View {
             Tab(AppTab.editor.rawValue, systemImage: AppTab.editor.icon, value: .editor) {
                 if store.selectedProject != nil {
                     GlyphGridView(selectedTab: $selectedTab)
+                } else {
+                    noProjectSelectedView
+                }
+            }
+
+            Tab(AppTab.ai.rawValue, systemImage: AppTab.ai.icon, value: .ai) {
+                if store.selectedProject != nil {
+                    AIFontGeneratorView()
                 } else {
                     noProjectSelectedView
                 }
@@ -72,4 +80,5 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environment(FontProjectStore())
+        .environment(LocalLLMService())
 }

@@ -19,18 +19,24 @@ struct DrawingCanvasView: UIViewRepresentable {
         canvas.overrideUserInterfaceStyle = .light
         canvas.tool = makePKTool()
         canvas.isScrollEnabled = false
+        canvas.showsVerticalScrollIndicator = false
+        canvas.showsHorizontalScrollIndicator = false
+        canvas.contentInsetAdjustmentBehavior = .never
+        canvas.minimumZoomScale = 1.0
+        canvas.maximumZoomScale = 1.0
 
-        // Enable finger drawing alongside pencil
-        canvas.drawingPolicy = .anyInput
+        // Wire up the undo manager from the SwiftUI environment
+        if let undoManager = canvas.undoManager {
+            context.coordinator.undoManager = undoManager
+        }
 
         return canvas
     }
 
     func updateUIView(_ uiView: PKCanvasView, context: Context) {
-        // Only update tool, don't replace drawing mid-edit
         uiView.tool = makePKTool()
 
-        // Sync drawing if it was cleared
+        // Sync drawing if it was cleared externally
         if drawing.strokes.isEmpty && !uiView.drawing.strokes.isEmpty {
             uiView.drawing = drawing
         }
@@ -49,7 +55,8 @@ struct DrawingCanvasView: UIViewRepresentable {
         case .select:
             return PKLassoTool()
         case .move:
-            return PKInkingTool(.pen, color: .black, width: brushSize)
+            // Use monoline for consistent strokes when in move mode
+            return PKInkingTool(.monoline, color: .black, width: brushSize)
         }
     }
 
@@ -57,6 +64,7 @@ struct DrawingCanvasView: UIViewRepresentable {
 
     final class Coordinator: NSObject, PKCanvasViewDelegate {
         let parent: DrawingCanvasView
+        var undoManager: UndoManager?
 
         init(_ parent: DrawingCanvasView) {
             self.parent = parent

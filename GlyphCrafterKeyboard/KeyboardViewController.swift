@@ -4,16 +4,21 @@ import PencilKit
 // MARK: - Custom Keyboard Extension
 
 /// A keyboard extension that renders typed characters using the user's custom
-/// hand-drawn font glyphs. When a matching glyph is found, it renders as an
-/// inline image; otherwise, standard text is inserted.
+/// hand-drawn font glyphs. Keys with custom glyphs show a rendered preview
+/// of the hand-drawn character on the key cap. When typed, the standard
+/// Unicode character is inserted (the custom font handles rendering in apps
+/// where it's installed).
 final class KeyboardViewController: UIInputViewController {
 
     // MARK: - Properties
 
     private var glyphCache: [UInt32: Data] = [:]
+    private var glyphImageCache: [UInt32: UIImage] = [:]
     private var currentFontName: String = ""
     private var isShifted = false
     private var isSymbolMode = false
+    private var isCapsLock = false
+    private var lastShiftTime: Date?
 
     private lazy var keyboardStackView: UIStackView = {
         let stack = UIStackView()
@@ -34,7 +39,12 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        updateKeyLabels()
+        rebuildKeyboard()
+    }
+
+    override func textDidChange(_ textInput: UITextInput?) {
+        super.textDidChange(textInput)
+        updateReturnKeyStyle()
     }
 
     // MARK: - Glyph Loading
@@ -53,7 +63,36 @@ final class KeyboardViewController: UIInputViewController {
         currentFontName = activeProject.familyName
         for glyph in activeProject.glyphs where !glyph.pathData.isEmpty {
             glyphCache[glyph.unicodeScalar] = glyph.pathData
+            // Pre-render glyph images for key caps
+            if let image = renderGlyphImage(from: glyph.pathData, size: CGSize(width: 28, height: 28)) {
+                glyphImageCache[glyph.unicodeScalar] = image
+            }
         }
+    }
+
+    /// Renders PencilKit drawing data into a small UIImage for key cap display.
+    private func renderGlyphImage(from pathData: Data, size: CGSize) -> UIImage? {
+        guard let drawing = try? PKDrawing(data: pathData),
+              !drawing.strokes.isEmpty else { return nil }
+
+        let bounds = drawing.bounds
+        guard !bounds.isEmpty else { return nil }
+
+        let padding: CGFloat = 2
+        let availW = size.width - padding * 2
+        let availH = size.height - padding * 2
+        let scaleX = availW / bounds.width
+        let scaleY = availH / bounds.height
+        let scale = min(scaleX, scaleY)
+
+        let imageRect = CGRect(
+            x: bounds.origin.x - ((size.width / scale - bounds.width) / 2),
+            y: bounds.origin.y - ((size.height / scale - bounds.height) / 2),
+            width: size.width / scale,
+            height: size.height / scale
+        )
+
+        return drawing.image(from: imageRect, scale: scale * UIScreen.main.scale)
     }
 
     // MARK: - Keyboard Layout
@@ -72,14 +111,12 @@ final class KeyboardViewController: UIInputViewController {
 
     private func setupKeyboardUI() {
         view.addSubview(keyboardStackView)
-
         NSLayoutConstraint.activate([
-            keyboardStackView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 4),
-            keyboardStackView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -4),
-            keyboardStackView.topAnchor.constraint(equalTo: view.topAnchor, constant: 8),
-            keyboardStackView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -8),
+            keyboardStackView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 3),
+            keyboardStackView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -3),
+            keyboardStackView.topAnchor.constraint(equalTo: view.topAnchor, constant: 6),
+            keyboardStackView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -6),
         ])
-
         rebuildKeyboard()
     }
 
@@ -87,8 +124,7 @@ final class KeyboardViewController: UIInputViewController {
         keyboardStackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
         // Font name banner
-        let banner = makeBannerRow()
-        keyboardStackView.addArrangedSubview(banner)
+        keyboardStackView.addArrangedSubview(makeBannerRow())
 
         let rows = isSymbolMode ? symbolRows : qwertyRows
 
@@ -98,62 +134,84 @@ final class KeyboardViewController: UIInputViewController {
             rowStack.spacing = 4
             rowStack.distribution = .fillEqually
 
-            // Add shift button on last letter row
             if !isSymbolMode && index == 2 {
-                let shiftBtn = makeSpecialKey(title: isShifted ? "⇧" : "⇪", action: #selector(shiftTapped))
+                let shiftBtn = makeSpecialKey(
+                    title: isCapsLock ? "⇪" : (isShifted ? "⬆" : "⇧"),
+                    action: #selector(shiftTapped)
+                )
+                if isShifted || isCapsLock {
+                    shiftBtn.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.2)
+                }
                 rowStack.addArrangedSubview(shiftBtn)
             }
 
             for key in row {
-                let displayKey = isShifted ? key.uppercased() : key
+                let displayKey = (isShifted || isCapsLock) ? key.uppercased() : key
                 let button = makeKeyButton(title: displayKey)
                 rowStack.addArrangedSubview(button)
             }
 
-            // Add delete button on last letter row
             if index == 2 {
                 let deleteBtn = makeSpecialKey(title: "⌫", action: #selector(deleteTapped))
+                // Add long-press for continuous delete
+                let longPress = UILongPressGestureRecognizer(target: self, action: #selector(deleteLongPressed(_:)))
+                longPress.minimumPressDuration = 0.3
+                deleteBtn.addGestureRecognizer(longPress)
                 rowStack.addArrangedSubview(deleteBtn)
             }
 
             keyboardStackView.addArrangedSubview(rowStack)
         }
 
-        // Bottom row: switch, space, return
-        let bottomRow = makeBottomRow()
-        keyboardStackView.addArrangedSubview(bottomRow)
+        keyboardStackView.addArrangedSubview(makeBottomRow())
     }
 
     // MARK: - Key Button Factory
 
     private func makeKeyButton(title: String) -> UIButton {
         let button = UIButton(type: .system)
-        button.setTitle(title, for: .normal)
-        button.titleLabel?.font = .systemFont(ofSize: 22)
-        button.backgroundColor = UIColor.systemBackground
-        button.setTitleColor(.label, for: .normal)
         button.layer.cornerRadius = 5
         button.layer.shadowColor = UIColor.black.cgColor
         button.layer.shadowOffset = CGSize(width: 0, height: 1)
-        button.layer.shadowOpacity = 0.15
+        button.layer.shadowOpacity = 0.12
         button.layer.shadowRadius = 0.5
+        button.clipsToBounds = false
         button.addTarget(self, action: #selector(keyTapped(_:)), for: .touchUpInside)
 
-        // Check if we have a custom glyph for this character
+        // Check for custom glyph image
         if let scalar = title.unicodeScalars.first,
-           glyphCache[scalar.value] != nil {
-            // Show a small indicator dot for custom glyphs
+           let glyphImage = glyphImageCache[scalar.value] {
+            // Show the hand-drawn glyph on the key cap
+            let imageView = UIImageView(image: glyphImage)
+            imageView.contentMode = .scaleAspectFit
+            imageView.translatesAutoresizingMaskIntoConstraints = false
+            button.addSubview(imageView)
+            NSLayoutConstraint.activate([
+                imageView.centerXAnchor.constraint(equalTo: button.centerXAnchor),
+                imageView.centerYAnchor.constraint(equalTo: button.centerYAnchor),
+                imageView.widthAnchor.constraint(equalToConstant: 28),
+                imageView.heightAnchor.constraint(equalToConstant: 28),
+            ])
+            button.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.05)
+            button.accessibilityLabel = title
+
+            // Small indicator
             let dot = UIView()
             dot.backgroundColor = UIColor.systemBlue
-            dot.layer.cornerRadius = 2
+            dot.layer.cornerRadius = 1.5
             dot.translatesAutoresizingMaskIntoConstraints = false
             button.addSubview(dot)
             NSLayoutConstraint.activate([
-                dot.widthAnchor.constraint(equalToConstant: 4),
-                dot.heightAnchor.constraint(equalToConstant: 4),
+                dot.widthAnchor.constraint(equalToConstant: 3),
+                dot.heightAnchor.constraint(equalToConstant: 3),
                 dot.centerXAnchor.constraint(equalTo: button.centerXAnchor),
-                dot.bottomAnchor.constraint(equalTo: button.bottomAnchor, constant: -2),
+                dot.bottomAnchor.constraint(equalTo: button.bottomAnchor, constant: -1),
             ])
+        } else {
+            button.setTitle(title, for: .normal)
+            button.titleLabel?.font = .systemFont(ofSize: 22)
+            button.setTitleColor(.label, for: .normal)
+            button.backgroundColor = UIColor.systemBackground
         }
 
         return button
@@ -162,7 +220,7 @@ final class KeyboardViewController: UIInputViewController {
     private func makeSpecialKey(title: String, action: Selector) -> UIButton {
         let button = UIButton(type: .system)
         button.setTitle(title, for: .normal)
-        button.titleLabel?.font = .systemFont(ofSize: 18)
+        button.titleLabel?.font = .systemFont(ofSize: 16, weight: .medium)
         button.backgroundColor = UIColor.secondarySystemBackground
         button.setTitleColor(.label, for: .normal)
         button.layer.cornerRadius = 5
@@ -174,8 +232,10 @@ final class KeyboardViewController: UIInputViewController {
     private func makeBannerRow() -> UIView {
         let container = UIView()
         let label = UILabel()
-        label.text = currentFontName.isEmpty ? "GlyphCrafter" : "✎ \(currentFontName)"
-        label.font = .systemFont(ofSize: 12, weight: .medium)
+        let glyphCount = glyphCache.count
+        let status = glyphCount > 0 ? "\(currentFontName) (\(glyphCount) glyphs)" : "GlyphCrafter"
+        label.text = "✎ \(status)"
+        label.font = .systemFont(ofSize: 11, weight: .medium)
         label.textColor = .secondaryLabel
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -184,7 +244,7 @@ final class KeyboardViewController: UIInputViewController {
             label.centerXAnchor.constraint(equalTo: container.centerXAnchor),
             label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
         ])
-        container.heightAnchor.constraint(equalToConstant: 20).isActive = true
+        container.heightAnchor.constraint(equalToConstant: 18).isActive = true
         return container
     }
 
@@ -198,8 +258,8 @@ final class KeyboardViewController: UIInputViewController {
         let globeBtn = makeSpecialKey(title: "🌐", action: #selector(nextKeyboardTapped))
 
         let spaceBtn = UIButton(type: .system)
-        spaceBtn.setTitle("space", for: .normal)
-        spaceBtn.titleLabel?.font = .systemFont(ofSize: 16)
+        spaceBtn.setTitle(currentFontName.isEmpty ? "space" : currentFontName, for: .normal)
+        spaceBtn.titleLabel?.font = .systemFont(ofSize: 14)
         spaceBtn.backgroundColor = UIColor.systemBackground
         spaceBtn.layer.cornerRadius = 5
         spaceBtn.addTarget(self, action: #selector(spaceTapped), for: .touchUpInside)
@@ -218,38 +278,60 @@ final class KeyboardViewController: UIInputViewController {
     // MARK: - Actions
 
     @objc private func keyTapped(_ sender: UIButton) {
-        guard let title = sender.title(for: .normal) else { return }
-        let proxy = textDocumentProxy
+        // Get the character from the button title or accessibility label
+        let title = sender.accessibilityLabel ?? sender.title(for: .normal) ?? ""
+        guard !title.isEmpty else { return }
 
-        if let scalar = title.unicodeScalars.first,
-           let pathData = glyphCache[scalar.value] {
-            // Insert the actual unicode character (the custom rendering
-            // is handled by apps that support the installed font)
-            proxy.insertText(title)
+        textDocumentProxy.insertText(title)
 
-            // Visual feedback
-            sender.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.2)
-            UIView.animate(withDuration: 0.15) {
-                sender.backgroundColor = UIColor.systemBackground
+        // Key press animation
+        UIView.animate(withDuration: 0.05, animations: {
+            sender.transform = CGAffineTransform(scaleX: 1.15, y: 1.15)
+        }) { _ in
+            UIView.animate(withDuration: 0.1) {
+                sender.transform = .identity
             }
-        } else {
-            proxy.insertText(title)
         }
 
-        // Auto-unshift after a letter
-        if isShifted && !isSymbolMode {
+        // Auto-unshift after a letter (unless caps lock)
+        if isShifted && !isCapsLock && !isSymbolMode {
             isShifted = false
-            updateKeyLabels()
+            rebuildKeyboard()
         }
     }
 
     @objc private func shiftTapped() {
-        isShifted.toggle()
-        updateKeyLabels()
+        let now = Date()
+
+        // Double-tap for caps lock
+        if let lastTime = lastShiftTime, now.timeIntervalSince(lastTime) < 0.4 {
+            isCapsLock.toggle()
+            isShifted = isCapsLock
+            lastShiftTime = nil
+        } else {
+            if isCapsLock {
+                isCapsLock = false
+                isShifted = false
+            } else {
+                isShifted.toggle()
+            }
+            lastShiftTime = now
+        }
+
+        rebuildKeyboard()
     }
 
     @objc private func deleteTapped() {
         textDocumentProxy.deleteBackward()
+    }
+
+    @objc private func deleteLongPressed(_ gesture: UILongPressGestureRecognizer) {
+        switch gesture.state {
+        case .began, .changed:
+            textDocumentProxy.deleteBackward()
+        default:
+            break
+        }
     }
 
     @objc private func spaceTapped() {
@@ -269,15 +351,13 @@ final class KeyboardViewController: UIInputViewController {
         advanceToNextInputMode()
     }
 
-    private func updateKeyLabels() {
-        rebuildKeyboard()
+    private func updateReturnKeyStyle() {
+        // Could update return key appearance based on context
     }
 }
 
 // MARK: - Lightweight Decodable for Keyboard Extension
 
-/// Minimal decodable structs for reading font project data in the keyboard extension.
-/// These mirror the main app's models but are kept separate to minimize extension size.
 private struct FontProjectData: Decodable {
     let id: String
     let name: String

@@ -1,4 +1,5 @@
 import SwiftUI
+import PencilKit
 
 struct GlyphGridView: View {
     @Environment(FontProjectStore.self) private var store
@@ -24,7 +25,6 @@ struct GlyphGridView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Category picker
                 Picker("Category", selection: $selectedCategory) {
                     ForEach(GlyphCategory.allCases, id: \.self) { cat in
                         Text(cat.rawValue).tag(cat)
@@ -33,7 +33,6 @@ struct GlyphGridView: View {
                 .pickerStyle(.segmented)
                 .padding()
 
-                // Completion bar
                 if let project {
                     let catGlyphs = selectedCategory.filter(project.glyphs)
                     let drawn = catGlyphs.filter(\.hasDrawing).count
@@ -49,7 +48,6 @@ struct GlyphGridView: View {
                     .padding(.bottom, 8)
                 }
 
-                // Glyph grid
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 8) {
                         ForEach(filteredGlyphs) { glyph in
@@ -57,6 +55,15 @@ struct GlyphGridView: View {
                                 .onTapGesture {
                                     selectedGlyph = glyph
                                     showingEditor = true
+                                }
+                                .contextMenu {
+                                    if glyph.hasDrawing {
+                                        Button(role: .destructive) {
+                                            clearGlyph(glyph)
+                                        } label: {
+                                            Label("Clear Drawing", systemImage: "trash")
+                                        }
+                                    }
                                 }
                         }
                     }
@@ -67,10 +74,19 @@ struct GlyphGridView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        showingSettings = true
+                    Menu {
+                        Button {
+                            showingSettings = true
+                        } label: {
+                            Label("Font Settings", systemImage: "gearshape")
+                        }
+                        Button {
+                            selectedTab = .ai
+                        } label: {
+                            Label("AI Generate", systemImage: "sparkles")
+                        }
                     } label: {
-                        Image(systemName: "gearshape")
+                        Image(systemName: "ellipsis.circle")
                     }
                 }
             }
@@ -88,6 +104,14 @@ struct GlyphGridView: View {
                 }
             }
         }
+    }
+
+    private func clearGlyph(_ glyph: Glyph) {
+        guard let project else { return }
+        var cleared = glyph
+        cleared.pathData = Data()
+        cleared.lastModified = Date()
+        store.updateGlyph(cleared, inProject: project.id)
     }
 }
 
@@ -110,9 +134,8 @@ struct GlyphCell: View {
                     )
 
                 if glyph.hasDrawing {
-                    // Show a preview of the drawn glyph
                     GlyphPathPreview(pathData: glyph.pathData)
-                        .padding(8)
+                        .padding(6)
                 } else {
                     Text(glyph.character)
                         .font(.system(size: 28, weight: .light, design: .monospaced))
@@ -128,32 +151,48 @@ struct GlyphCell: View {
     }
 }
 
-// MARK: - Glyph Path Preview
+// MARK: - Glyph Path Preview (PencilKit-based)
 
 struct GlyphPathPreview: View {
     let pathData: Data
 
     var body: some View {
-        Canvas { context, size in
-            guard let drawing = try? NSKeyedUnarchiver.unarchivedObject(
-                ofClass: PKDrawingWrapper.self, from: pathData
-            ) else { return }
-
-            let paths = drawing.paths
-            for pathInfo in paths {
-                var path = Path()
-                let points = pathInfo.points
-                guard !points.isEmpty else { continue }
-
-                let scaleX = size.width / 512
-                let scaleY = size.height / 512
-
-                path.move(to: CGPoint(x: points[0].x * scaleX, y: points[0].y * scaleY))
-                for i in 1..<points.count {
-                    path.addLine(to: CGPoint(x: points[i].x * scaleX, y: points[i].y * scaleY))
-                }
-                context.stroke(path, with: .color(.primary), lineWidth: max(1, pathInfo.lineWidth * scaleX))
+        GeometryReader { geo in
+            if let drawing = try? PKDrawing(data: pathData), !drawing.strokes.isEmpty {
+                let bounds = drawing.bounds
+                let image = renderDrawing(drawing, bounds: bounds, targetSize: geo.size)
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
             }
         }
+    }
+
+    private func renderDrawing(_ drawing: PKDrawing, bounds: CGRect, targetSize: CGSize) -> UIImage {
+        guard !bounds.isEmpty else {
+            return UIImage()
+        }
+
+        let padding: CGFloat = 4
+        let availableWidth = targetSize.width - padding * 2
+        let availableHeight = targetSize.height - padding * 2
+
+        let scaleX = availableWidth / bounds.width
+        let scaleY = availableHeight / bounds.height
+        let scale = min(scaleX, scaleY)
+
+        let renderWidth = bounds.width * scale
+        let renderHeight = bounds.height * scale
+        let offsetX = (targetSize.width - renderWidth) / 2
+        let offsetY = (targetSize.height - renderHeight) / 2
+
+        let imageRect = CGRect(
+            x: bounds.origin.x - (offsetX / scale),
+            y: bounds.origin.y - (offsetY / scale),
+            width: targetSize.width / scale,
+            height: targetSize.height / scale
+        )
+
+        return drawing.image(from: imageRect, scale: scale)
     }
 }
