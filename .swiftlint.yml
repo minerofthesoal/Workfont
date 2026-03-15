@@ -1,0 +1,35 @@
+included:
+  - GlyphCrafter
+  - GlyphCrafterKeyboard
+  - Tests
+
+excluded:
+  - GlyphCrafter.xcodeproj
+
+disabled_rules:
+  - trailing_whitespace
+  - line_length
+  - force_cast
+  - type_body_length
+  - file_length
+  - function_body_length
+
+opt_in_rules:
+  - empty_count
+  - closure_spacing
+  - contains_over_first_not_nil
+  - discouraged_optional_boolean
+  - sorted_imports
+
+identifier_name:
+  min_length: 1
+  excluded:
+    - id
+    - x
+    - y
+    - i
+    - d
+    - r
+    - g
+    - b
+    - p
